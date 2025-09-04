@@ -56,6 +56,7 @@ vector<Event> getAllEvents(const string& filename);
 void updateEvents(const vector<Event>& events);
 void statusMenu();
 void eventReport(User& currentUser, const vector<Event>& events);
+void viewEventsBillBoard(const vector<Event>& events);
 
 string getNonEmptyInput(const string& prompt) {
 	string input;
@@ -165,6 +166,46 @@ void mainMenu() {
 	cout << "3. Exit\n";
 }
 
+//Event Marketing
+void viewEventBillboard(const vector<Event>& events) {
+	clearScreen();
+	cout << "===EVENTS BILLBOARD===\n";
+	cout << "-------------------------------------------------------\n";
+
+	if (events.empty()) {
+		cout << "No event available right now\n";
+	}
+	else {
+		bool eventsFound = false;
+		for (size_t i = 0; i < events.size(); i++) {
+			if (events[i].status != "Cancelled") {
+				eventsFound = true;
+				cout << i + 1 << ".	" << events[i].eventName << " - " << events[i].date << " at " << events[i].time << "\n";
+				cout << "	Venue: " << events[i].venue << "\n";
+				cout << "	Fee: RM" << fixed << setprecision(2) << events[i].fee << "\n";
+				cout << "	Status: " << events[i].status << "\n";
+				cout << "	Available Slot: " << events[i].maxParticipants - events[i].participants.size() << "/" << events[i].maxParticipants << "\n";
+				cout << "-------------------------------------------------------\n";
+			}
+		}
+
+		if (!eventsFound) {
+			cout << "No event available right now\n";
+		}
+	}
+	cout << "\nEnter 0 to return to User Menu: ";
+	string input;
+	while (true) {
+		getline(cin, input);
+		if (input == "0") {
+			break;
+		}
+		else {
+			cout << "Please enter 0 to return to user menu: ";
+		}
+	}
+}
+
 void userMenu(User& currentUser, vector<Event>& events) {
 	string choice;
 	do {
@@ -178,7 +219,7 @@ void userMenu(User& currentUser, vector<Event>& events) {
 			joinEvent(currentUser, events);
 		}
 		else if (choice == "2") {
-			cout << "Events BillBoard";
+			viewEventBillboard(events);
 		}
 		else {
 			cout << "Invalid choice.\n";
@@ -592,6 +633,10 @@ void joinEvent(User& currentUser, vector<Event>& events) {
 
 	if (events.empty()) {
 		cout << "No Events Available Right Now";
+		cout << "Please enter to return to user menu";
+		string userInput;
+		getline(cin, userInput);
+		return;
 	}
 	else {
 		for (int i = 0; i < events.size(); i++) {
@@ -824,4 +869,3 @@ void eventReport(User& currentUser, const vector<Event>& events) {
 	}
 
 }
-
