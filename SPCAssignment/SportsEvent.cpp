@@ -4,7 +4,6 @@
 #include <regex>
 #include <sstream>
 #include <iomanip>
-#include <cstdio>
 using namespace std;
 
 struct User {
@@ -28,14 +27,29 @@ struct Event {
 	vector<string> participants;
 };
 
+struct EventLog {
+	string eventName;
+	string organiserEmail;
+	string eventNote;
+};
+
+struct EventFeedback {
+	string eventName;
+	string userEmail;
+	string feedback;
+};
+
 const string USER_FILE = "users.txt";
 const string ORGANISER_FILE = "organisers.txt";
 const string EVENT_FILE = "events.txt";
+const string LOG_FILE = "eventlogs.txt";
+const string FEEDBACK_FILE = "feedback.txt";
+const string HISTORY_FILE = "history.txt";
 
 void clearScreen();
 void mainMenu();
 void userMenu(User& currentUser, vector<Event>& events);
-void organiserMenu(User& currentUser, vector<Event>& events);
+void organiserMenu(User& currentUser, vector<Event>& events , EventLog& log , vector<EventFeedback> feedbacks , const vector<User> users);
 void registerUser(string role);
 bool loginUser(string role, User& currentUser);
 bool isValidEmail(string email);
@@ -48,14 +62,30 @@ int payment(double total);
 bool isValidTime(string& time);
 int timeToMinutes(const string& timeStr);
 void monitorEventMenu();
-void emchoice(User& currentUser, vector<Event>& events);
+void emchoice(User& currentUser, vector<Event>& events , EventLog& log , vector<EventFeedback> feedbacks , const vector<User> users);
 void viewOngoingEvents(User& currentUser, vector<Event>& events);
-void updateEventStatus(User& currentUser, vector<Event>& events);
+void updateEventStatus(User& currentUser, vector<User>& users ,vector<Event>& events);
+void createUser(User& u, string role);
 void updateUserFile(User& currentUser, string role);
 vector<Event> getAllEvents(const string& filename);
+vector<EventFeedback> getFeedback(const string& filename);
+vector<User> getAllUsers(const string& filename);
 void updateEvents(const vector<Event>& events);
 void statusMenu();
 void eventReport(User& currentUser, const vector<Event>& events);
+void createEventLog(const EventLog& log);
+void addEventLog(User& currentUser, const vector<Event>& events);
+void viewEventLogs(User& currentUser, EventLog& log);
+void addFeedback(User& currentUser, const vector<Event>& events);
+void createFeedback(const User& currentUser, const Event& e);
+void viewFeedback(User& currentUser, const vector<Event> events);
+void viewEventBillboard(const vector<Event>& events);
+void cancelEventRegistration(User& currentUser, vector<Event>& events);
+void saveHistory(const User& currentUser, const string& action, const string& eventName);
+void viewHistory(const User& currentUser);
+void viewParticipantList(User& currentUser, const vector<Event> events, const vector<User> users);
+void currentEventTemplate(const Event& e, User& currentUser);
+void resetLimit(User& currentUser, vector<User> users, Event& e);
 
 string getNonEmptyInput(const string& prompt) {
 	string input;
@@ -73,7 +103,12 @@ int getValidInt(const string& prompt) {
 	string input;
 	while (true) {
 		cout << prompt;
-		cin >> input;
+		getline(cin, input);
+
+		if (input.empty()) {
+			cout << "Input cannot be empty\n";
+			continue;
+		}
 
 		bool digitsOnly = true;
 		for (char c : input) {
@@ -93,15 +128,16 @@ int getValidInt(const string& prompt) {
 }
 
 void clearScreen() {
-	for (int i = 0; i < 50; i++) {
-		cout << "\n";
-	}
+	system("cls");
 }
 
 int main() {
 	User currentUser;
+	EventLog log;
 	string choice;
 	vector<Event> events = getAllEvents("events.txt");
+	vector<EventFeedback> feedbacks = getFeedback("feedback.txt");
+	vector <User> users = getAllUsers("users.txt");
 
 	do {
 		mainMenu();
@@ -132,7 +168,7 @@ int main() {
 				}
 				else if (roleChoice == "2") {
 					success = loginUser("organiser", currentUser);
-					if (success) organiserMenu(currentUser, events);
+					if (success) organiserMenu(currentUser, events , log , feedbacks , users);
 				}
 				else {
 					cout << "Invalid choice.\n";
@@ -156,7 +192,6 @@ int main() {
 	return 0;
 }
 
-
 //UserRegistration & Event Booking
 void mainMenu() {
 	cout << "\n=== MAIN MENU ===\n";
@@ -171,6 +206,10 @@ void userMenu(User& currentUser, vector<Event>& events) {
 		cout << "\n=== USER MENU ===\n";
 		cout << "1. Join Event\n";
 		cout << "2. Events Billboard\n";
+		cout << "3. Give Feedback\n";
+		cout << "4. Cancel Event Registration\n";
+		cout << "5. View History\n";
+		cout << "6. Return\n";
 		choice = getNonEmptyInput("Choice: ");
 
 		if (choice == "1") {
@@ -178,22 +217,39 @@ void userMenu(User& currentUser, vector<Event>& events) {
 			joinEvent(currentUser, events);
 		}
 		else if (choice == "2") {
-			cout << "Events BillBoard";
+			clearScreen();
+			viewEventBillboard(events);
+		}
+		else if (choice == "3") {
+			clearScreen();
+			addFeedback(currentUser , events);
+		}
+		else if (choice == "4") {
+			clearScreen();
+			cancelEventRegistration(currentUser, events);
+		}
+		else if (choice == "5") {
+			clearScreen();
+			viewHistory(currentUser);
+		}
+		else if (choice == "6") {
+			cout << "Return";
 		}
 		else {
 			cout << "Invalid choice.\n";
 		}
-	} while (choice != "1");
+	} while (choice != "6");
 }
 
-void organiserMenu(User& currentUser, vector<Event>& events) {
+void organiserMenu(User& currentUser, vector<Event>& events , EventLog& log , vector<EventFeedback> feedbacks , const vector<User> users) {
 	string choice;
 	do {
 		cout << "\n=== ORGANISER MENU ===\n";
 		cout << "1. Register New Event\n";
 		cout << "2. Monitor Event\n";
 		cout << "3. Event Reports\n";
-		cout << "4. Logout\n";
+		cout << "4. View Event Feedbacks\n";
+		cout << "5. Return\n";
 		choice = getNonEmptyInput("Choice: ");
 
 		if (choice == "1") {
@@ -202,19 +258,24 @@ void organiserMenu(User& currentUser, vector<Event>& events) {
 		}
 		else if (choice == "2") {
 			clearScreen();
-			emchoice(currentUser, events);
+			emchoice(currentUser, events , log , feedbacks , users);
 		}
 		else if (choice == "3") {
 			clearScreen();
 			eventReport(currentUser, events);
 		}
 		else if (choice == "4") {
+			clearScreen();
+			viewFeedback(currentUser , events);
+		}
+		else if (choice == "5") {
 			cout << "Logging out\n";
+			return;
 		}
 		else {
 			cout << "Invalid choice.\n";
 		}
-	} while (choice != "4");
+	} while (choice != "5");
 }
 
 void registerUser(string role) {
@@ -239,18 +300,7 @@ void registerUser(string role) {
 		return;
 	}
 
-	string fileName = (role == "organiser") ? ORGANISER_FILE : USER_FILE;
-	ofstream outFile;
-	outFile.open(fileName.c_str(), ios::app);
-
-	if (!outFile) {
-		cout << "Error opening file for writing.\n";
-		return;
-	}
-
-	outFile << u.username << " " << u.password << " " << u.email << " " << u.limit << endl;
-	outFile.close();
-
+	createUser(u , role);
 	cout << "Registration successful!\n";
 }
 
@@ -295,8 +345,8 @@ void createEvent(User& currentUser, vector<Event>& events) {
 		"Stadium 1",
 		"Stadium 2",
 		"Indoor Sports Complex",
-		"Field 1",
-		"Field 2"
+		"FIFA Court 1",
+		"FIFA Court 2"
 	};
 
 	Event e;
@@ -328,6 +378,8 @@ void createEvent(User& currentUser, vector<Event>& events) {
 	e.date = (day < 10 ? "0" : "") + to_string(day) + "/" +
 		(month < 10 ? "0" : "") + to_string(month) + "/" +
 		to_string(year);
+
+	cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
 	do {
 		startTime = getNonEmptyInput("Enter Start Time (HH:MM): ");
@@ -362,18 +414,17 @@ void createEvent(User& currentUser, vector<Event>& events) {
 	} while (choice < 1 || choice > venues.size());
 	e.venue = venues[choice - 1];
 
-	cin.ignore();
+	cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
 	cout << "Enter Event Details: ";
 	getline(cin, e.details);
 
 	cout << "Enter Needed Equipments: ";
 	getline(cin, e.equipments);
 
-	cout << "Enter Amount of Participants: ";
-	cin >> e.maxParticipants;
+	e.maxParticipants = getValidInt("Enter Amount of Participants: ");
 
-	cout << "Enter Event Fee (RM): ";
-	cin >> e.fee;
+	e.fee = getValidInt("Enter Event Fee (RM): ");
 	cin.ignore();
 
 	e.organiserEmail = currentUser.email;
@@ -385,8 +436,6 @@ void createEvent(User& currentUser, vector<Event>& events) {
 
 	cout << "Event registered successfully!\n";
 }
-
-
 
 //Validations
 bool emailExists(string email, string role) {
@@ -468,15 +517,13 @@ bool isValidEmail(string email) {
 	return regex_match(email, pattern);
 }
 
-
-
 //Files Operations
 vector<Event> getAllEvents(const string& filename) {
-	ifstream inFile(filename);
+	ifstream inFile(EVENT_FILE);
 	vector<Event> events;
 
 	if (!inFile) {
-		cout << "Cannot open file: " << filename << endl;
+		cout << "Cannot open file" << endl;
 		return events;
 	}
 
@@ -513,6 +560,63 @@ vector<Event> getAllEvents(const string& filename) {
 
 	inFile.close();
 	return events;
+}
+
+vector<EventFeedback> getFeedback(const string& filename) {
+	EventFeedback fb;
+	vector<EventFeedback> feedbacks;
+	ifstream inFile(FEEDBACK_FILE);
+
+	if (!inFile) {
+		return feedbacks;
+	}
+
+	string line;
+	while (getline(inFile, line)) {
+		stringstream ss(line);
+		EventFeedback fb;
+
+		getline(ss, fb.eventName, ',');
+		getline(ss, fb.userEmail, ',');
+		getline(ss, fb.feedback, '\n');
+
+		feedbacks.push_back(fb);
+	}
+
+	inFile.close();
+	return feedbacks;
+
+}
+
+vector<User> getAllUsers(const string& filename) {
+	vector<User> users;
+	ifstream inFile(USER_FILE);
+
+	if (!inFile) {
+		return users;
+	}
+
+	User u;
+	while (inFile >> u.username >> u.password >> u.email >> u.limit) {
+		users.push_back(u);
+	}
+
+	inFile.close();
+	return users;
+}
+
+void createUser(User& u , string role) {
+	string fileName = (role == "organiser") ? ORGANISER_FILE : USER_FILE;
+	ofstream outFile;
+	outFile.open(fileName.c_str(), ios::app);
+
+	if (!outFile) {
+		cout << "Error opening file for writing.\n";
+		return;
+	}
+
+	outFile << u.username << " " << u.password << " " << u.email << " " << u.limit << endl;
+	outFile.close();
 }
 
 void updateUserFile(User& currentUser, string role) {
@@ -575,11 +679,11 @@ void updateEvents(const vector<Event>& events) {
 	outFile.close();
 }
 
-
-
-
 //Payment & Event Registration
 void joinEvent(User& currentUser, vector<Event>& events) {
+	int choice;
+	string input;
+	vector<int> availableEvents;
 
 	clearScreen();
 	cout << "Events Tab\n";
@@ -591,31 +695,35 @@ void joinEvent(User& currentUser, vector<Event>& events) {
 	}
 
 	if (events.empty()) {
-		cout << "No Events Available Right Now";
+		cout << "No Events Available Right Now\n";
+		return;
 	}
-	else {
-		for (int i = 0; i < events.size(); i++) {
-			cout << i + 1 << ". " << events[i].eventName << endl;
+
+	for (int i = 0; i < events.size(); i++) {
+		if (events[i].status == "Scheduled") {
+			availableEvents.push_back(i);
+			cout << availableEvents.size() << ". " << events[i].eventName << endl;
 		}
 	}
 
-	int choice;
-	string input;
+	if (availableEvents.empty()) {
+		cout << "No Available Events Right Now\n";
+		return;
+	}
 
 	while (true) {
 		input = getNonEmptyInput("Select an Event to join: ");
-
 		stringstream ss(input);
-		if (ss >> choice && choice >= 1 && choice <= (int)events.size()) {
+
+		if (ss >> choice && choice >= 1 && choice <= (int)availableEvents.size()) {
 			break;
 		}
 		else {
-			cout << "Invalid selection! Please enter a number between 1 and "
-				<< events.size() << ".\n";
+			cout << "Invalid selection!\n";
 		}
 	}
 
-	Event& selected = events[choice - 1];
+	Event& selected = events[availableEvents[choice - 1]];
 
 	if ((int)selected.participants.size() >= selected.maxParticipants) {
 		cout << "Sorry, this event is already full.\n";
@@ -632,13 +740,19 @@ void joinEvent(User& currentUser, vector<Event>& events) {
 	currentUser.limit = true;
 	updateUserFile(currentUser, "user");
 	updateEvents(events);
-
+	saveHistory(currentUser, "join", selected.eventName);
 }
 
 int payment(double total) {
 	string input;
+	string cardNumber, cvv;
+	string bankChoice;
+	string eWalletChoice;
+	string phoneNum;
+	double cash;
 	int method;
 	regex validPattern("^[1-4]$");
+
 
 	do {
 		cout << "\nSelect your payment method:\n";
@@ -660,15 +774,83 @@ int payment(double total) {
 		case 1:
 			cout << "Processing Credit Card payment of RM"
 				<< fixed << setprecision(2) << total << "...\n";
+
+
+			cout << "Enter your 16-digit card Number: ";
+
+			while (!regex_match(cardNumber, regex("^[0-9]{16}$"))) {
+				cout << " Invalid card number. Please enter a valid 16-digit number: ";
+				cin >> cardNumber;
+			}
+
+			cout << "Enter your 3-digit CVV: ";
+			cin >> cvv;
+
+			while (!regex_match(cvv, regex("^[0-9]{3}$"))) {
+				cout << " Invalid CVV. Please enter a valid 3-digit number: ";
+				cin >> cvv;
+			}
+
+			cout << " Payment of RM" << fixed << setprecision(2) << total << " successful!\n";
+
 			break;
 		case 2:
 			cout << "Redirecting to Online Banking portal...\n";
+
+			cout << "\n--- Online Banking ---\n";
+			cout << "Available Banks:\n";
+			cout << "1. Maybank\n2. CIMB\n3. RHB\n4. Public Bank\n";
+			cout << "Select your bank (1-4): ";
+			cin >> bankChoice;
+
+			while (!regex_match(bankChoice, regex("^[1-4]$"))) {
+				cout << " Invalid choice. Please enter 1-4: ";
+				cin >> bankChoice;
+			}
+			cout << " Payment of RM" << fixed << setprecision(2) << total << " completed via online banking.\n";
+
 			break;
 		case 3:
 			cout << "Launching eWallet interface...\n";
+
+			cout << "\n--- eWallet Payment ---\n";
+			cout << "Available Providers:\n";
+			cout << "1. Touch 'n Go\n2. GrabPay\n3. Boost\n";
+			cout << "Select your provider (1-3): ";
+			cin >> eWalletChoice;
+
+			while (!regex_match(eWalletChoice, regex("^[1-3]$"))) {
+				cout << " Invalid choice. Please enter 1-3: ";
+				cin >> eWalletChoice;
+			}
+
+			cout << "Enter your phone number (10-11 digits): ";
+			cin >> phoneNum;
+
+			while (!regex_match(phoneNum, regex("^[0-9]{10,11}$"))) {
+				cout << " Invalid phone number. Please enter again: ";
+				cin >> phoneNum;
+			}
+
+			cout << " Payment of RM" << fixed << setprecision(2) << total << " completed via eWallet.\n";
 			break;
+
 		case 4:
-			cout << "Please pay cash at the registration counter.\n";
+			cout << "\n--- Cash Payment ---\n";
+
+			do {
+				cout << "Total to pay: RM" << fixed << setprecision(2) << total << "\n";
+				cout << "Enter cash amount: RM";
+				cin >> cash;
+
+				if (cash < total) {
+					cout << " Insufficient amount. Please pay at least RM" << total << ".\n";
+				}
+				else {
+					cout << " Payment successful!\n";
+					cout << "Your change: RM" << fixed << setprecision(2) << (cash - total) << "\n";
+				}
+			} while (cash < total);
 			break;
 		}
 	} while (method == 0);
@@ -677,44 +859,76 @@ int payment(double total) {
 	return method;
 }
 
-
-
 //Event Monitoring & Reporting
 void monitorEventMenu() {
-	cout << "===MONITOR EVENTS===\n";
+	cout << "\n\n===MONITOR EVENTS===\n\n";
 	cout << "1. View Ongoing Event\n";
 	cout << "2. Update Event Status\n";
-	cout << "3. Return\n";
+	cout << "3. View Participant List\n";
+	cout << "4. Add Event Log\n";
+	cout << "5. View Event Log\n";
+	cout << "6. Return\n";
 }
 
-void emchoice(User& currentUser, vector<Event>& events) {
+void emchoice(User& currentUser, vector<Event>& events , EventLog& log , vector<EventFeedback> feedbacks , vector<User> users) {
 	int organizer_choice;
 
 	do {
 		monitorEventMenu();
 		cout << "Enter an option: ";
 		cin >> organizer_choice;
-
+		cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
 		switch (organizer_choice) {
 		case 1:
+			clearScreen();
 			viewOngoingEvents(currentUser, events);
 			break;
 		case 2:
-			updateEventStatus(currentUser, events);
+			clearScreen();
+			viewOngoingEvents(currentUser, events);
+			updateEventStatus(currentUser, users , events);
 			break;
 		case 3:
 			clearScreen();
-			organiserMenu(currentUser, events);
+			viewParticipantList(currentUser, events, users);
+			break;
+		case 4:
+			clearScreen();
+			addEventLog(currentUser, events);
+			break;
+		case 5:
+			clearScreen();
+			viewEventLogs(currentUser, log);
+			break;
+		case 6:
+			clearScreen();
+			organiserMenu(currentUser, events, log, feedbacks , users);
 			break;
 		default:
 			cout << "Invalid choice.\n";
 		}
 
 
-	} while (organizer_choice != 3);
+	} while (organizer_choice != 6);
 
+}
 
+void currentEventTemplate(const Event& e , User& currentUser) {
+	string currentEvent[6][2] = { {"Current Event: " , e.eventName} ,
+		{"Organized By: " , currentUser.username} ,
+		{"Date: " , e.date} , {"Time: " , e.time} , {"Max Participants: " , to_string(e.maxParticipants)} , {"Event Status: " , e.status}
+	};
+
+	cout << "\n-------------------------------------------\n";
+	cout << "           CURRENT ONGOING EVENT           \n";
+	cout << "-------------------------------------------\n";
+
+	for (int i = 0; i < 6; i++) {
+		cout << setw(18) << left << currentEvent[i][0] << " : " << currentEvent[i][1] << "\n";
+	}
+
+	cout << "-------------------------------------------\n\n";
 }
 
 void viewOngoingEvents(User& currentUser, vector<Event>& events) {
@@ -723,25 +937,11 @@ void viewOngoingEvents(User& currentUser, vector<Event>& events) {
 	for (Event& e : events) {
 		if (e.organiserEmail == currentUser.email && (e.status == "Scheduled" || e.status == "Started")) {
 			eventFound = true;
-			cout << fixed << setprecision(2) << showpoint;
-			cout << " " << setw(94) << setfill('-') << " " << endl << setfill(' ');
-			cout << "|" << setw(52) << "CURRENT ONGOING EVENT" << setw(42) << "|" << endl;
-			cout << "|" << setw(65) << e.eventName << setw(29) << "|" << endl;
-			cout << "|" << setw(56) << "STATUS : " << e.status << setw(38) << "|" << endl;
-			cout << "|" << setw(56) << "ORGANIZED BY : " << currentUser.username << setw(38) << "|" << endl;
-			cout << " " << setw(94) << setfill('-') << " " << endl << setfill(' ');
-
-			cout << "Date: " << e.date << endl << endl;
-			cout << "Time: " << e.time << endl << endl;
-			cout << "Max Participants: " << e.maxParticipants << endl << endl;
-			cout << "Equipments: " << e.equipments << endl << endl;
-			cout << "Details: " << e.details << endl << endl;
-			cout << " " << setw(94) << setfill('-') << " " << endl << setfill(' ') << endl;
+			currentEventTemplate(e , currentUser);
 		}
 	}
 
 	if (!eventFound) {
-		clearScreen();
 		cout << "*** There is no ongoing event right now ***\n\n";
 	}
 
@@ -754,7 +954,7 @@ void statusMenu() {
 	cout << "3. CANCELLED\n";
 }
 
-void updateEventStatus(User& currentUser, vector<Event>& events) {
+void updateEventStatus(User& currentUser, vector<User>& users ,vector<Event>& events) {
 	int status_option;
 	int eventId = -1;
 
@@ -784,14 +984,12 @@ void updateEventStatus(User& currentUser, vector<Event>& events) {
 	else if (status_option == 2) {
 		cout << "Event Status Changed from " << e.status << " to Ended";
 		e.status = "Ended";
-		currentUser.limit = false;
-		updateUserFile(currentUser, "organiser");
+		resetLimit(currentUser, users, e);
 	}
 	else if (status_option == 3) {
 		cout << "Event Status Changed from " << e.status << " to Cancelled";
 		e.status = "Cancelled";
-		currentUser.limit = false;
-		updateUserFile(currentUser, "organiser");
+		resetLimit(currentUser , users , e);
 	}
 	else {
 		cout << "Invalid Option";
@@ -823,5 +1021,380 @@ void eventReport(User& currentUser, const vector<Event>& events) {
 		}
 	}
 
+}
+
+void addEventLog(User& currentUser, const vector<Event>& events ) {
+	string note;
+	EventLog log;
+	bool eventFound = false;
+
+	for (const Event& e : events) {
+		if (currentUser.email == e.organiserEmail && e.status == "Started") {
+			eventFound = true;
+			cout << "Add an Event Log: ";
+			getline(cin, note);
+
+			if (note.empty()) {
+				cout << "Log cannot be empty";
+				return;
+			}
+			
+			log.eventName = e.eventName;
+			log.organiserEmail = currentUser.email;
+			log.eventNote = note;
+
+			createEventLog(log);
+
+		}
+		
+	}
+
+	if (!eventFound) {
+		cout << "No Active Events to Add Log to";
+	}
+}
+
+void createEventLog(const EventLog& log) {
+	ofstream outFile(LOG_FILE, ios::app);
+	if (!outFile) {
+		cout << "Error opening log file!" << endl;
+		return;
+	}
+
+	outFile << log.eventName << ","
+		<< log.organiserEmail << ","
+		<< log.eventNote << "\n";
+
+	outFile.close();
+	cout << "Event log added successfully!" << endl;
+}
+
+void viewEventLogs(User& currentUser , EventLog& log){
+	ifstream inFile(LOG_FILE);
+
+	if (!inFile) {
+		cout << "Cannot open log file!" << endl;
+		return;
+	}
+
+	string line;
+	bool found = false;
+
+	cout << "\n--- Event Logs ---\n";
+	while (getline(inFile, line)) {
+		stringstream ss(line);
+		EventLog log;
+
+		getline(ss, log.eventName, ',');
+		getline(ss, log.organiserEmail, ',');
+		getline(ss, log.eventNote, '\n');  
+
+		if (log.organiserEmail == currentUser.email) {
+			found = true;
+			cout << "Event: " << log.eventName << "\n"
+				<< "Note : " << log.eventNote << "\n"
+				<< "---------------------------\n";
+		}
+	}
+
+	if (!found) {
+		cout << "No logs found\n";
+	}
+
+	inFile.close();
+}
+
+void addFeedback(User& currentUser , const vector<Event>& events) {
+	bool found = false;
+
+	cout << "\n=== GIVE FEEDBACK ===\n";
+	for (int i = 0; i < events.size() ; i++) {
+		if (find(events[i].participants.begin(), events[i].participants.end(), currentUser.email)
+			!= events[i].participants.end()
+			&& events[i].status == "Ended") {
+			cout << i + 1 << ". " << events[i].eventName << endl;
+			found = true;
+		}
+	}
+
+	if (found == false) {
+		cout << "You haven't joined any events or current Event hasn't ended\n";
+		return;
+	}
+
+	int choice;
+	cout << "Select an event to give feedback: ";
+	cin >> choice;
+	cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+	if (choice < 1 || choice >(int)events.size()) {
+		cout << "Invalid choice.\n";
+		return;
+	}
+
+	const Event& selectedEvent = events[choice - 1];
+	createFeedback(currentUser , selectedEvent);
+}
+
+void createFeedback(const User& currentUser, const Event& e) {
+	EventFeedback fb;
+	fb.eventName = e.eventName;
+	fb.userEmail = currentUser.email;
+
+	cout << "Enter your feedback: ";
+	getline(cin, fb.feedback);
+
+	if (fb.feedback.empty()) {
+		cout << "Feedback cannot be empty!\n";
+		return;
+	}
+
+	ofstream outFile(FEEDBACK_FILE, ios::app);
+	if (!outFile) {
+		cout << "Error opening feedback file.\n";
+		return;
+	}
+
+	outFile << fb.eventName << ","
+		<< fb.userEmail << ","
+		<< fb.feedback << "\n";
+	outFile.close();
+
+	cout << "Feedback submitted successfully!\n";
+}
+
+void viewFeedback(User& currentUser , const vector<Event> events) {
+	vector<EventFeedback> feedbacks = getFeedback(FEEDBACK_FILE);
+	bool found = false;
+
+	for (const EventFeedback& fb : feedbacks) {
+		for (const Event& e : events) {
+			if (e.organiserEmail == currentUser.email && e.eventName == fb.eventName) {
+				found = true;
+				cout << "Event: " << fb.eventName << "\n"
+					<< "From: " << fb.userEmail << "\n"
+					<< "Feedback: " << fb.feedback << "\n"
+					<< "-----------------------------\n";
+			}
+		}
+	}
+
+	if (!found) {
+		cout << "No feedback found for your events yet.\n";
+	}
+}
+
+void viewEventBillboard(const vector<Event>& events) {
+	clearScreen();
+	cout << "===EVENTS BILLBOARD===\n";
+	cout << "-------------------------------------------------------\n";
+
+	if (events.empty()) {
+		cout << "No event available right now\n";
+	}
+	else {
+		bool eventsFound = false;
+		for (size_t i = 0; i < events.size(); i++) {
+			if (events[i].status != "Cancelled") {
+				eventsFound = true;
+				cout << i + 1 << ".	" << events[i].eventName << " - " << events[i].date << " at " << events[i].time << "\n";
+				cout << "	Venue: " << events[i].venue << "\n";
+				cout << "	Fee: RM" << fixed << setprecision(2) << events[i].fee << "\n";
+				cout << "	Status: " << events[i].status << "\n";
+				cout << "	Available Slot: " << events[i].maxParticipants - events[i].participants.size() << "/" << events[i].maxParticipants << "\n";
+				cout << "-------------------------------------------------------\n";
+			}
+		}
+
+		if (!eventsFound) {
+			cout << "No event available right now\n";
+		}
+	}
+	cout << "\nEnter 0 to return to User Menu: ";
+	string input;
+	while (true) {
+		getline(cin, input);
+		if (input == "0") {
+			break;
+		}
+		else {
+			cout << "Please enter 0 to return to user menu: ";
+		}
+	}
+}
+
+void cancelEventRegistration(User& currentUser, vector<Event>& events) {
+	clearScreen();
+	cout << "===CANCEL EVENT REGISTRATION===\n";
+	cout << "-------------------------------------------------------\n";
+
+	if (!currentUser.limit) {
+		cout << "You have not joined any event to cancel.\n";
+		cout << "Please enter to return to user menu";
+		string back;
+		getline(cin, back);
+		return;
+	}
+
+	bool found = false;
+	int eventIndex = -1;
+
+	for (int i = 0; i < events.size(); i++) {
+		for (int j = 0; j < events[i].participants.size(); j++) {
+			if (events[i].participants[j] == currentUser.email) {
+				found = true;
+				eventIndex = i;
+				break;
+			}
+		}
+		if (found) break;
+	}
+	if (!found) {
+		cout << "Error: Event not found.\n";
+		cout << "Please enter to return to user menu";
+		string back;
+		getline(cin, back);
+		return;
+	}
+	cout << "You are registered for the event: \n";
+	cout << "Event Name: " << events[eventIndex].eventName << endl;
+	cout << "Date: " << events[eventIndex].date << endl;
+	cout << "Time: " << events[eventIndex].time << endl;
+	cout << "Venue: " << events[eventIndex].venue << endl;
+
+	cout << "\nAre you sure you want to cancel your registration? (y/n): ";
+	string confirmation;
+	while (true) {
+		confirmation = getNonEmptyInput("");
+		if (confirmation == "y" || confirmation == "Y" || confirmation == "n" || confirmation == "N") {
+			break;
+		}
+		else {
+			cout << "Invalid input. Please enter 'y' or 'n': ";
+		}
+	}
+
+	if (confirmation == "y" || confirmation == "Y") {
+		for (size_t j = 0; j < events[eventIndex].participants.size(); j++) {
+			if (events[eventIndex].participants[j] == currentUser.email) {
+				events[eventIndex].participants.erase(events[eventIndex].participants.begin() + j);
+				break;
+			}
+		}
+		currentUser.limit = false;
+
+		updateUserFile(currentUser, "user");
+		updateEvents(events);
+
+		saveHistory(currentUser, "cancel", events[eventIndex].eventName);
+
+		cout << "Your registration has been cancelled successfully.\n";
+
+	}
+	else {
+		cout << "Cancellation aborted. You are still registered for the event.\n";
+	}
+
+	cout << "Please enter to return to user menu";
+	string back;
+	getline(cin, back);
+}
+
+void saveHistory(const User& currentUser, const string& action, const string& eventName) {
+	ofstream out(HISTORY_FILE, ios::app);
+	if (!out) {
+		cout << "Failed to open history file." << endl;
+		return;
+	}
+
+	out << currentUser.email << "," << action << "," << eventName << "\n";
+}
+
+void viewHistory(const User& currentUser) {
+	clearScreen();
+	cout << "===VIEW HISTORY===\n";
+	cout << "-------------------------------------------------------\n";
+
+	ifstream in(HISTORY_FILE);
+	if (!in) {
+		cout << "Enter to return to user menu";
+		cin.ignore(numeric_limits<streamsize>::max(), '\n');
+		string back;
+		getline(cin, back);
+		return;
+	}
+
+	string line;
+	bool found = false;
+	while (getline(in, line)) {
+		stringstream ss(line);
+		string email, action, eventName;
+		found = true;
+		getline(ss, email, ',');
+		getline(ss, action, ',');
+		getline(ss, eventName);
+
+		if (action == "join") {
+			cout << "- Joined: " << eventName << "\n";
+		}
+		else if (action == "cancel") {
+			cout << "- Cancelled: " << eventName << "\n";
+		}
+		else {
+			cout << "- " << action << ": " << eventName << "\n";
+		}
+
+	}
+
+	if (!found) {
+		cout << "No history found for your account." << endl;
+	}
+
+	cout << "Enter to return to user menu";
+	string back;
+	getline(cin, back);
+}
+
+void viewParticipantList(User& currentUser , const vector<Event> events , const vector<User> users) {
+	string email;
+	string name;
+	bool found = false;
+
+	cout << "Participant Names\n";
+	cout << "-------------------------------------------------\n";
+	for (int i = 0; i < events.size(); i++ ) {
+		if (events[i].organiserEmail == currentUser.email && (events[i].status == "Scheduled" || events[i].status == "Started")) {
+			found = true;
+			for (int j = 0; j < events[i].participants.size(); j++) {
+				email = events[i].participants[j];
+				for (const User& u : users) {
+					if (u.email == email) {
+						name = u.username;
+					}
+				}
+				cout << j + i << ". " << name << " " << "(" << email << ")" << endl;
+			}
+
+		}
+	}
+
+	if (!found) {
+		cout << "Currently , No active Event";
+		return;
+	}
+}
+
+void resetLimit(User& currentUser , vector<User> users , Event& e)  {
+	currentUser.limit = false;
+	updateUserFile(currentUser, "organiser");
+
+	for (string& email : e.participants) {
+		for (User& u : users) {  
+			if (u.email == email) {
+				u.limit = false;
+				updateUserFile(u, "user");  
+			}
+		}
+	}
 }
 
