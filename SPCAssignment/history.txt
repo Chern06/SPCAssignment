@@ -1,0 +1,6 @@
+ali@gmail.com,join,Charity EVent
+ali@gmail.com,cancel,Charity EVent
+ali@gmail.com,join,Charity Run 2.0
+ali@gmail.com,cancel,Charity Run 2.0
+ali@gmail.com,join,Sports Day 4
+ali@gmail.com,join,Sports Day 4
