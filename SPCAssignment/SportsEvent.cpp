@@ -243,7 +243,8 @@ void userMenu(User& currentUser, vector<Event>& events) {
 
 void organiserMenu(User& currentUser, vector<Event>& events , EventLog& log , vector<EventFeedback> feedbacks , const vector<User> users) {
 	string choice;
-	do {
+
+	while(true) {
 		cout << "\n=== ORGANISER MENU ===\n";
 		cout << "1. Register New Event\n";
 		cout << "2. Monitor Event\n";
@@ -270,12 +271,12 @@ void organiserMenu(User& currentUser, vector<Event>& events , EventLog& log , ve
 		}
 		else if (choice == "5") {
 			cout << "Logging out\n";
-			return;
+			break;
 		}
 		else {
 			cout << "Invalid choice.\n";
 		}
-	} while (choice != "5");
+	}
 }
 
 void registerUser(string role) {
@@ -379,8 +380,6 @@ void createEvent(User& currentUser, vector<Event>& events) {
 		(month < 10 ? "0" : "") + to_string(month) + "/" +
 		to_string(year);
 
-	cin.ignore(numeric_limits<streamsize>::max(), '\n');
-
 	do {
 		startTime = getNonEmptyInput("Enter Start Time (HH:MM): ");
 		endTime = getNonEmptyInput("Enter End Time (HH:MM): ");
@@ -411,9 +410,14 @@ void createEvent(User& currentUser, vector<Event>& events) {
 	do {
 		cout << "Enter your choice (1-" << venues.size() << "): ";
 		cin >> choice;
-	} while (choice < 1 || choice > venues.size());
-	e.venue = venues[choice - 1];
 
+		if (choice < 1 || choice > venues.size()) {
+			cout << "Invalid choice! Please try again.\n";
+		}
+
+	} while (choice < 1 || choice > venues.size());
+
+	e.venue = venues[choice - 1];
 	cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
 	cout << "Enter Event Details: ";
@@ -425,7 +429,6 @@ void createEvent(User& currentUser, vector<Event>& events) {
 	e.maxParticipants = getValidInt("Enter Amount of Participants: ");
 
 	e.fee = getValidInt("Enter Event Fee (RM): ");
-	cin.ignore();
 
 	e.organiserEmail = currentUser.email;
 	currentUser.limit = true;
@@ -973,29 +976,32 @@ void updateEventStatus(User& currentUser, vector<User>& users ,vector<Event>& ev
 
 	Event& e = events[eventId];
 
-	statusMenu();
-	cout << "Please Select Which Status are you changing to: ";
-	cin >> status_option;
+	while (true) {
+		statusMenu();
+		status_option = getValidInt("Please Select Which Status you are changing to: ");
 
-	if (status_option == 1) {
-		cout << "Event Status Changed from " << e.status << " to Started";
-		e.status = "Started";
+		if (status_option == 1) {
+			cout << "Event Status Changed from " << e.status << " to Started";
+			e.status = "Started";
+			break;
+		}
+		else if (status_option == 2) {
+			cout << "Event Status Changed from " << e.status << " to Ended";
+			e.status = "Ended";
+			resetLimit(currentUser, users, e);
+			break;
+		}
+		else if (status_option == 3) {
+			cout << "Event Status Changed from " << e.status << " to Cancelled";
+			e.status = "Cancelled";
+			resetLimit(currentUser, users, e);
+			break;
+		}
+		else {
+			cout << "Invalid Option. Please Enter Again \n";
+		}
 	}
-	else if (status_option == 2) {
-		cout << "Event Status Changed from " << e.status << " to Ended";
-		e.status = "Ended";
-		resetLimit(currentUser, users, e);
-	}
-	else if (status_option == 3) {
-		cout << "Event Status Changed from " << e.status << " to Cancelled";
-		e.status = "Cancelled";
-		resetLimit(currentUser , users , e);
-	}
-	else {
-		cout << "Invalid Option";
-		return;
-	}
-
+	
 	updateEvents(events);
 }
 
@@ -1106,6 +1112,7 @@ void viewEventLogs(User& currentUser , EventLog& log){
 
 void addFeedback(User& currentUser , const vector<Event>& events) {
 	bool found = false;
+	int choice;
 
 	cout << "\n=== GIVE FEEDBACK ===\n";
 	for (int i = 0; i < events.size() ; i++) {
@@ -1122,14 +1129,17 @@ void addFeedback(User& currentUser , const vector<Event>& events) {
 		return;
 	}
 
-	int choice;
-	cout << "Select an event to give feedback: ";
-	cin >> choice;
-	cin.ignore(numeric_limits<streamsize>::max(), '\n');
+	while (true) {
+		cout << "Select an event to give feedback: ";
+		cin >> choice;
+		cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
-	if (choice < 1 || choice >(int)events.size()) {
-		cout << "Invalid choice.\n";
-		return;
+		if (choice < 1 || choice >(int)events.size()) {
+			cout << "Invalid choice.\n";
+		}
+		else {
+			break;
+		}
 	}
 
 	const Event& selectedEvent = events[choice - 1];

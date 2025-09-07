@@ -1,4 +1,1 @@
-Sports Day 3,02/02/2025,12:00 - 15:00,Stadium 1,hi,hi,10,brian@gmail.com,10,Cancelled,
-Sports Day 4,02/02/2025,12:00 - 15:00,Stadium 1,w,w,15,brian@gmail.com,15,Ended,ali@gmail.com;ali@gmail.com
-chairty,02/02/2025,12:00 - 15:00,Stadium 1,w,w,10,brian@gmail.com,10,Cancelled,
-chairty 2,02/02/2025,12:00 - 15:00,Stadium 1,,,10,brian@gmail.com,10,Scheduled,
+
