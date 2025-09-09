@@ -642,18 +642,29 @@ void updateUserFile(User& currentUser, string role) {
 	ifstream inFile(fileName);
 	ofstream tempFile("temp.txt");
 
-	string uname, pass, mail;
-	bool lim;
-	while (getline(inFile, uname, '|') && getline(inFile, pass, '|') && getline(inFile, mail, '|') && inFile >> lim) {
+	string line;
+    while (getline(inFile, line)) {
+        stringstream ss(line);
+        string uname, pass, mail, limStr;
+        bool lim = false;
 
-		inFile.ignore(numeric_limits<streamsize>::max(), '\n');
-		if (uname == currentUser.username) {
-			tempFile << currentUser.username << "|" << currentUser.password << "|" << currentUser.email << "|" << currentUser.limit << endl;
-		}
-		else {
-			tempFile << uname << "|" << pass << "|" << mail << "|" << lim << endl;
-		}
-	}
+        getline(ss, uname, '|');
+        getline(ss, pass, '|');
+        getline(ss, mail, '|');
+        getline(ss, limStr, '|');
+
+        if (!limStr.empty())
+            lim = (limStr == "1" || limStr == "true");
+
+        if (uname == currentUser.username) {
+            tempFile << currentUser.username << "|"
+                     << currentUser.password << "|"
+                     << currentUser.email << "|"
+                     << (currentUser.limit ? 1 : 0) << "\n";
+        } else {
+            tempFile << uname << "|" << pass << "|" << mail << "|" << (lim ? 1 : 0) << "\n";
+        }
+    }
 
 	inFile.close();
 	tempFile.close();
