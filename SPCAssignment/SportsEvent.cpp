@@ -75,7 +75,7 @@ void statusMenu();
 void eventReport(User& currentUser, const vector<Event>& events);
 void createEventLog(const EventLog& log);
 void addEventLog(User& currentUser, const vector<Event>& events);
-void viewEventLogs(User& currentUser, EventLog& log);
+void viewEventLogs(User& currentUser);
 void addFeedback(User& currentUser, const vector<Event>& events);
 void createFeedback(const User& currentUser, const Event& e);
 void viewFeedback(User& currentUser, const vector<Event> events);
@@ -85,7 +85,7 @@ void saveHistory(const User& currentUser, const string& action, const string& ev
 void viewHistory(const User& currentUser);
 void viewParticipantList(User& currentUser, const vector<Event> events, const vector<User> users);
 void currentEventTemplate(const Event& e, User& currentUser);
-void resetLimit(User& currentUser, vector<User> users, Event& e);
+void resetLimit(User& currentUser, vector<User>& users, Event& e);
 
 string getNonEmptyInput(const string& prompt) {
 	string input;
@@ -210,6 +210,7 @@ void userMenu(User& currentUser, vector<Event>& events) {
 		cout << "4. Cancel Event Registration\n";
 		cout << "5. View History\n";
 		cout << "6. Return\n";
+
 		choice = getNonEmptyInput("Choice: ");
 
 		if (choice == "1") {
@@ -319,20 +320,24 @@ bool loginUser(string role, User& currentUser) {
 		return false;
 	}
 
-	string uname, pass, mail;
-	bool eventLimit = false;
+	string line , uname, pass, mail, limitStr;
 	bool found = false;
+	while (getline(inFile, line)) {
+		stringstream ss(line);
 
-	while (inFile >> uname >> pass >> mail >> eventLimit) {
+		getline(ss, uname, '|');
+		getline(ss, pass, '|');
+		getline(ss, mail, '|');
+		getline(ss, limitStr);
+
 		if (mail == email && pass == password) {
 			cout << role << " login successful!\n";
 			found = true;
 
-
 			currentUser.username = uname;
 			currentUser.password = pass;
 			currentUser.email = mail;
-			currentUser.limit = eventLimit;
+			currentUser.limit = (limitStr == "1");
 			break;
 		}
 	}
@@ -448,16 +453,17 @@ bool emailExists(string email, string role) {
 
 	if (!inFile) return false;
 
-	string uname, pass, mail;
-	inFile >> uname >> pass >> mail;
-	while (!inFile.eof()) {
-		if (mail == email) {
-			inFile.close();
-			return true;
-		}
-		inFile >> uname >> pass >> mail;
-	}
+	string line, uname, pass, mail, limitStr;
+	while (getline(inFile, line)) {
+		stringstream ss(line);
 
+		getline(ss, uname, '|');
+		getline(ss, pass, '|');
+		getline(ss, mail, '|');
+		getline(ss, limitStr);
+
+		if (mail == email) return true;
+	}
 	inFile.close();
 	return false;
 }
@@ -469,16 +475,17 @@ bool usernameExists(string username, string role) {
 
 	if (!inFile) return false;
 
-	string uname, pass, mail;
-	inFile >> uname >> pass >> mail;
-	while (!inFile.eof()) {
-		if (uname == username) {
-			inFile.close();
-			return true;
-		}
-		inFile >> uname >> pass >> mail;
-	}
+	string line , uname, pass, mail, limitStr;
+	while (getline(inFile, line)) {
+		stringstream ss(line);
 
+		getline(ss, uname, '|');
+		getline(ss, pass, '|');
+		getline(ss, mail, '|');
+		getline(ss, limitStr);
+
+		if (uname == username) return true;
+	}
 	inFile.close();
 	return false;
 }
@@ -536,16 +543,16 @@ vector<Event> getAllEvents(const string& filename) {
 		Event e;
 		string maxP_str, fee_str, participants_str;
 
-		if (!getline(ss, e.eventName, ',')) continue;
-		if (!getline(ss, e.date, ',')) continue;
-		if (!getline(ss, e.time, ',')) continue;
-		if (!getline(ss, e.venue, ',')) continue;
-		if (!getline(ss, e.details, ',')) continue;
-		if (!getline(ss, e.equipments, ',')) continue;
-		if (!getline(ss, maxP_str, ',')) continue;
-		if (!getline(ss, e.organiserEmail, ',')) continue;
-		if (!getline(ss, fee_str, ',')) continue;
-		if (!getline(ss, e.status, ',')) continue;
+		if (!getline(ss, e.eventName, '|')) continue;
+		if (!getline(ss, e.date, '|')) continue;
+		if (!getline(ss, e.time, '|')) continue;
+		if (!getline(ss, e.venue, '|')) continue;
+		if (!getline(ss, e.details, '|')) continue;
+		if (!getline(ss, e.equipments, '|')) continue;
+		if (!getline(ss, maxP_str, '|')) continue;
+		if (!getline(ss, e.organiserEmail, '|')) continue;
+		if (!getline(ss, fee_str, '|')) continue;
+		if (!getline(ss, e.status, '|')) continue;
 		getline(ss, participants_str, '\n');
 
 		e.maxParticipants = stoi(maxP_str);
@@ -579,8 +586,8 @@ vector<EventFeedback> getFeedback(const string& filename) {
 		stringstream ss(line);
 		EventFeedback fb;
 
-		getline(ss, fb.eventName, ',');
-		getline(ss, fb.userEmail, ',');
+		getline(ss, fb.eventName, '|');
+		getline(ss, fb.userEmail, '|');
 		getline(ss, fb.feedback, '\n');
 
 		feedbacks.push_back(fb);
@@ -600,10 +607,18 @@ vector<User> getAllUsers(const string& filename) {
 	}
 
 	User u;
-	while (inFile >> u.username >> u.password >> u.email >> u.limit) {
+	string line , limitStr;
+	while (getline(inFile, line)) {
+		stringstream ss(line);
+
+		getline(ss, u.username, '|');
+		getline(ss, u.password, '|');
+		getline(ss, u.email, '|');
+		getline(ss, limitStr);
+
+		u.limit = (limitStr == "1");
 		users.push_back(u);
 	}
-
 	inFile.close();
 	return users;
 }
@@ -618,7 +633,7 @@ void createUser(User& u , string role) {
 		return;
 	}
 
-	outFile << u.username << " " << u.password << " " << u.email << " " << u.limit << endl;
+	outFile << u.username << "|" << u.password << "|" << u.email << "|" << u.limit << endl;
 	outFile.close();
 }
 
@@ -629,12 +644,14 @@ void updateUserFile(User& currentUser, string role) {
 
 	string uname, pass, mail;
 	bool lim;
-	while (inFile >> uname >> pass >> mail >> lim) {
+	while (getline(inFile, uname, '|') && getline(inFile, pass, '|') && getline(inFile, mail, '|') && inFile >> lim) {
+
+		inFile.ignore(numeric_limits<streamsize>::max(), '\n');
 		if (uname == currentUser.username) {
-			tempFile << currentUser.username << " " << currentUser.password << " " << currentUser.email << " " << currentUser.limit << endl;
+			tempFile << currentUser.username << "|" << currentUser.password << "|" << currentUser.email << "|" << currentUser.limit << endl;
 		}
 		else {
-			tempFile << uname << " " << pass << " " << mail << " " << lim << endl;
+			tempFile << uname << "|" << pass << "|" << mail << "|" << lim << endl;
 		}
 	}
 
@@ -666,16 +683,16 @@ void updateEvents(const vector<Event>& events) {
 			if (i < e.participants.size() - 1) participants_str += ";";
 		}
 
-		outFile << e.eventName << ","
-			<< e.date << ","
-			<< e.time << ","
-			<< e.venue << ","
-			<< e.details << ","
-			<< e.equipments << ","
-			<< e.maxParticipants << ","
-			<< e.organiserEmail << ","
-			<< e.fee << ","
-			<< e.status << ","
+		outFile << e.eventName << "|"
+			<< e.date << "|"
+			<< e.time << "|"
+			<< e.venue << "|"
+			<< e.details << "|"
+			<< e.equipments << "|"
+			<< e.maxParticipants << "|"
+			<< e.organiserEmail << "|"
+			<< e.fee << "|"
+			<< e.status << "|"
 			<< participants_str << "\n";
 	}
 
@@ -902,7 +919,7 @@ void emchoice(User& currentUser, vector<Event>& events , EventLog& log , vector<
 			break;
 		case 5:
 			clearScreen();
-			viewEventLogs(currentUser, log);
+			viewEventLogs(currentUser);
 			break;
 		case 6:
 			clearScreen();
@@ -920,7 +937,9 @@ void emchoice(User& currentUser, vector<Event>& events , EventLog& log , vector<
 void currentEventTemplate(const Event& e , User& currentUser) {
 	string currentEvent[6][2] = { {"Current Event: " , e.eventName} ,
 		{"Organized By: " , currentUser.username} ,
-		{"Date: " , e.date} , {"Time: " , e.time} , {"Max Participants: " , to_string(e.maxParticipants)} , {"Event Status: " , e.status}
+		{"Date: " , e.date} , {"Time: " , e.time} , 
+		{"Max Participants: " , to_string(e.maxParticipants)} , 
+		{"Event Status: " , e.status}
 	};
 
 	cout << "\n-------------------------------------------\n";
@@ -981,18 +1000,18 @@ void updateEventStatus(User& currentUser, vector<User>& users ,vector<Event>& ev
 		status_option = getValidInt("Please Select Which Status you are changing to: ");
 
 		if (status_option == 1) {
-			cout << "Event Status Changed from " << e.status << " to Started";
+			cout << "Event Status Changed from " << e.status << " to Started\n";
 			e.status = "Started";
 			break;
 		}
 		else if (status_option == 2) {
-			cout << "Event Status Changed from " << e.status << " to Ended";
+			cout << "Event Status Changed from " << e.status << " to Ended\n";
 			e.status = "Ended";
 			resetLimit(currentUser, users, e);
 			break;
 		}
 		else if (status_option == 3) {
-			cout << "Event Status Changed from " << e.status << " to Cancelled";
+			cout << "Event Status Changed from " << e.status << " to Cancelled\n";
 			e.status = "Cancelled";
 			resetLimit(currentUser, users, e);
 			break;
@@ -1011,9 +1030,7 @@ void eventReport(User& currentUser, const vector<Event>& events) {
 
 	cout << fixed << setprecision(2) << showpoint;
 	cout << "\n--- Event Report (Ended Events Only) ---\n";
-	cout << left << setw(20) << "Event Name"
-		<< setw(15) << "Participants"
-		<< setw(10) << "Revenue" << "\n";
+	cout << left << setw(20) << "Event Name" << setw(15) << "Participants" << setw(10) << "Revenue" << "\n";
 	cout << string(50, '-') << "\n";
 
 	for (const Event& e : events) {
@@ -1067,15 +1084,15 @@ void createEventLog(const EventLog& log) {
 		return;
 	}
 
-	outFile << log.eventName << ","
-		<< log.organiserEmail << ","
+	outFile << log.eventName << "|"
+		<< log.organiserEmail << "|"
 		<< log.eventNote << "\n";
 
 	outFile.close();
 	cout << "Event log added successfully!" << endl;
 }
 
-void viewEventLogs(User& currentUser , EventLog& log){
+void viewEventLogs(User& currentUser){
 	ifstream inFile(LOG_FILE);
 
 	if (!inFile) {
@@ -1091,8 +1108,8 @@ void viewEventLogs(User& currentUser , EventLog& log){
 		stringstream ss(line);
 		EventLog log;
 
-		getline(ss, log.eventName, ',');
-		getline(ss, log.organiserEmail, ',');
+		getline(ss, log.eventName, '|');
+		getline(ss, log.organiserEmail, '|');
 		getline(ss, log.eventNote, '\n');  
 
 		if (log.organiserEmail == currentUser.email) {
@@ -1113,19 +1130,21 @@ void viewEventLogs(User& currentUser , EventLog& log){
 void addFeedback(User& currentUser , const vector<Event>& events) {
 	bool found = false;
 	int choice;
+	vector<int> joinedEvents;
 
 	cout << "\n=== GIVE FEEDBACK ===\n";
 	for (int i = 0; i < events.size() ; i++) {
 		if (find(events[i].participants.begin(), events[i].participants.end(), currentUser.email)
 			!= events[i].participants.end()
 			&& events[i].status == "Ended") {
-			cout << i + 1 << ". " << events[i].eventName << endl;
+			cout << joinedEvents.size() + 1 << ". " << events[i].eventName << endl;
+			joinedEvents.push_back(i);
 			found = true;
 		}
 	}
 
 	if (found == false) {
-		cout << "You haven't joined any events or current Event hasn't ended\n";
+		cout << "You haven't joined any events or no current ended Events \n";
 		return;
 	}
 
@@ -1134,7 +1153,7 @@ void addFeedback(User& currentUser , const vector<Event>& events) {
 		cin >> choice;
 		cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
-		if (choice < 1 || choice >(int)events.size()) {
+		if (choice < 1 || choice > joinedEvents.size()) {
 			cout << "Invalid choice.\n";
 		}
 		else {
@@ -1142,7 +1161,7 @@ void addFeedback(User& currentUser , const vector<Event>& events) {
 		}
 	}
 
-	const Event& selectedEvent = events[choice - 1];
+	const Event& selectedEvent = events[joinedEvents[choice - 1]];
 	createFeedback(currentUser , selectedEvent);
 }
 
@@ -1165,9 +1184,7 @@ void createFeedback(const User& currentUser, const Event& e) {
 		return;
 	}
 
-	outFile << fb.eventName << ","
-		<< fb.userEmail << ","
-		<< fb.feedback << "\n";
+	outFile << fb.eventName << "|" << fb.userEmail << "|" << fb.feedback << "\n";
 	outFile.close();
 
 	cout << "Feedback submitted successfully!\n";
@@ -1317,7 +1334,7 @@ void saveHistory(const User& currentUser, const string& action, const string& ev
 		return;
 	}
 
-	out << currentUser.email << "," << action << "," << eventName << "\n";
+	out << currentUser.email << "|" << action << "|" << eventName << "\n";
 }
 
 void viewHistory(const User& currentUser) {
@@ -1339,21 +1356,23 @@ void viewHistory(const User& currentUser) {
 	while (getline(in, line)) {
 		stringstream ss(line);
 		string email, action, eventName;
-		found = true;
-		getline(ss, email, ',');
-		getline(ss, action, ',');
+
+		getline(ss, email, '|');
+		getline(ss, action, '|');
 		getline(ss, eventName);
 
-		if (action == "join") {
-			cout << "- Joined: " << eventName << "\n";
+		if (email == currentUser.email) {
+			found = true;
+			if (action == "join") {
+				cout << "- Joined: " << eventName << "\n";
+			}
+			else if (action == "cancel") {
+				cout << "- Cancelled: " << eventName << "\n";
+			}
+			else {
+				cout << "- " << action << ": " << eventName << "\n";
+			}
 		}
-		else if (action == "cancel") {
-			cout << "- Cancelled: " << eventName << "\n";
-		}
-		else {
-			cout << "- " << action << ": " << eventName << "\n";
-		}
-
 	}
 
 	if (!found) {
@@ -1382,7 +1401,7 @@ void viewParticipantList(User& currentUser , const vector<Event> events , const 
 						name = u.username;
 					}
 				}
-				cout << j + i << ". " << name << " " << "(" << email << ")" << endl;
+				cout << j + 1 << ". " << name << " " << "(" << email << ")" << endl;
 			}
 
 		}
@@ -1394,7 +1413,7 @@ void viewParticipantList(User& currentUser , const vector<Event> events , const 
 	}
 }
 
-void resetLimit(User& currentUser , vector<User> users , Event& e)  {
+void resetLimit(User& currentUser , vector<User>& users , Event& e)  {
 	currentUser.limit = false;
 	updateUserFile(currentUser, "organiser");
 
